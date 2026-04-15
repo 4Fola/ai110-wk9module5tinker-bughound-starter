@@ -31,5 +31,6 @@ Thumbs.db
 .coverage
 htmlcov/
 
+# Original files
 README copy.md
 model_card copy.md
