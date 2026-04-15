@@ -30,3 +30,6 @@ Thumbs.db
 # Coverage reports
 .coverage
 htmlcov/
+
+README copy.md
+model_card copy.md
