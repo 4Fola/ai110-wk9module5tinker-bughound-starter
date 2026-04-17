@@ -4,6 +4,23 @@ BugHound is a small, agent-style debugging tool. It analyzes a Python code snipp
 
 ---
 
+# I. Create env
+python -m venv venv
+source venv/bin/activate  # Windows: venv\Scripts\activate
+
+# II. Install deps
+pip install -r requirements.txt
+
+# III. (Optional) Add Gemini key
+cp .env.example .env
+# add GEMINI_API_KEY=...
+
+# IV. Run app
+streamlit run bughound_app.py
+
+# V. How To Run Tests
+pytest tests/
+
 ## What BugHound Does
 
 Given a short Python snippet, BugHound:

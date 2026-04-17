@@ -17,6 +17,52 @@ st.caption("A tiny agent that analyzes code, proposes a fix, and runs simple rel
 load_dotenv()
 
 # ----------------------------
+# Streamlit UI
+# ----------------------------
+# WK09 Part 4 – UI Mock Layout (Streamlit)
+
+st.title("BugHound – Agent Trace & Review")
+
+st.subheader("Side-by-Side Issue Comparison")
+col1, col2, col3 = st.columns(3)
+
+with col1:
+    st.markdown("### Heuristic Issues")
+    st.json(result["issues_heuristic"])
+
+with col2:
+    st.markdown("### AI Issues")
+    st.json(result["issues_ai"])
+
+with col3:
+    st.markdown("### Final Selected Issues")
+    st.json(result["issues_final"])
+
+st.subheader("Proposed Fix")
+st.code(result["proposed_fix"], language="python")
+
+st.subheader("Risk Report")
+st.json(result["risk_report"].__dict__)
+
+st.subheader("Agent Trace")
+
+COLOR = {
+    "INFO": "gray",
+    "ACCEPTED": "green",
+    "REJECTED": "red",
+    "LOCKED": "orange",
+}
+
+for entry in result["trace"]:
+    st.markdown(
+        f"<span style='color:{COLOR.get(entry['status'], 'black')}'>"
+        f"[{entry['stage']}] [{entry['source']}] "
+        f"[{entry['status']}] {entry['message']}"
+        "</span>",
+        unsafe_allow_html=True
+    )
+
+# ----------------------------
 # Helpers
 # ----------------------------
 SAMPLE_SNIPPETS = {
@@ -165,11 +211,14 @@ if run_button:
     if not require_code_input(code_input):
         st.stop()
 
+    result = agent.run(code_input)
+
     if mode == "Gemini (requires API key)" and client is None:
         st.error("Gemini mode is selected, but no API key is available.")
         st.stop()
 
-    agent = BugHoundAgent(client=client)
+    agent_mode = "gemini" if mode.startswith("Gemini") else "heuristic"
+    agent = BugHoundAgent(mode=agent_mode)
 
     with st.spinner("BugHound is sniffing around..."):
         result = agent.run(code_input)
@@ -254,3 +303,12 @@ if run_button:
         st.divider()
         st.subheader("Debug payload")
         st.json(result)
+
+st.download_button(
+    "Download Trace JSON",
+    agent.export_trace_json(),
+    file_name="bughound_trace.json",
+    mime="application/json"
+)
+
+

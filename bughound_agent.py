@@ -129,7 +129,10 @@ class BugHoundAgent:
         self._log("FIX", "HEURISTIC", "INFO", "Applying conservative fix")
         return self.heuristic_fixer.fix(code, issues)
 
-
+# WK09 Part 5 – Exportable trace for UI, logs, or grading
+    def export_trace_json(self) -> str:
+        import json
+        return json.dumps(self.trace, indent=2)
 
 
 
