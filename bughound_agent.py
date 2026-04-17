@@ -2,232 +2,106 @@ import json
 import re
 from typing import Any, Dict, List, Optional, Tuple
 
+from analyzers.heuristic_analyzer import HeuristicAnalyzer
+from analyzers.ai_analyzer import AIAnalyzer
+from fixers.heuristic_fixer import HeuristicFixer
 from reliability.risk_assessor import assess_risk
-
 
 class BugHoundAgent:
     """
-    BugHound runs a small agentic workflow:
+    BugHound Agent
 
-    1) PLAN: decide what to look for
-    2) ANALYZE: detect issues (heuristics or LLM)
-    3) ACT: propose a fix (heuristics or LLM)
-    4) TEST: run simple reliability checks
-    5) REFLECT: decide whether to apply the fix automatically
+    Cautious debugging assistant with human-in-the-loop bias.
     """
 
-    def __init__(self, client: Optional[Any] = None):
-        # client should implement: complete(system_prompt: str, user_prompt: str) -> str
-        self.client = client
-        self.logs: List[Dict[str, str]] = []
+    def __init__(self, mode: str = "heuristic"):
+        self.mode = mode
+        self.trace: List[str] = []
 
-    # ----------------------------
-    # Public API
-    # ----------------------------
-    def run(self, code_snippet: str) -> Dict[str, Any]:
-        self.logs = []
-        self._log("PLAN", "Planning a quick scan + fix proposal workflow.")
+        self.heuristic_analyzer = HeuristicAnalyzer()
+        self.ai_analyzer = AIAnalyzer()
+        self.heuristic_fixer = HeuristicFixer()
 
-        issues = self.analyze(code_snippet)
-        self._log("ANALYZE", f"Found {len(issues)} issue(s).")
+        # WK09 Part 3 – Track AI usage for risk decisions
+        self.ai_used = False
 
-        fixed_code = self.propose_fix(code_snippet, issues)
-        if fixed_code.strip() == "":
-            self._log("ACT", "No fix produced (refused, error, or empty output).")
+    def run(self, code: str) -> Dict[str, Any]:
+        self.trace.clear()
+        self.ai_used = False
 
-        risk = assess_risk(original_code=code_snippet, fixed_code=fixed_code, issues=issues)
-        self._log("TEST", f"Risk assessed as {risk.get('level', 'unknown')} (score={risk.get('score', '-')}).")
+        self.trace.append("[ANALYZE] Starting issue detection")
+        analysis_result = self.analyze(code)
 
-        if risk.get("should_autofix"):
-            self._log("REFLECT", "Fix appears safe enough to auto-apply under current policy.")
-        else:
-            self._log("REFLECT", "Fix is not safe enough to auto-apply. Human review recommended.")
+        self.trace.append("[FIX] Proposing candidate fix")
+        proposed_fix = self.propose_fix(code, analysis_result["final"])
+
+        self.trace.append("[RISK] Assessing change safety")
+        risk_report = assess_risk(
+            code,
+            proposed_fix,
+            ai_used=self.ai_used  # WK09 Part 3 – bias toward caution
+        )
+
+        self.trace.append(
+            f"[DECIDE] auto_fix_allowed={risk_report.should_autofix}"
+        )
 
         return {
-            "issues": issues,
-            "fixed_code": fixed_code,
-            "risk": risk,
-            "logs": self.logs,
+            # WK09 Part 3 – Side-by-side comparison for UI
+            "issues_heuristic": analysis_result["heuristic"],
+            "issues_ai": analysis_result["ai"],
+            "issues_final": analysis_result["final"],
+            "proposed_fix": proposed_fix,
+            "risk_report": risk_report,
+            "trace": self.trace,
         }
 
-    # ----------------------------
-    # Workflow steps
-    # ----------------------------
-    def analyze(self, code_snippet: str) -> List[Dict[str, str]]:
-        if not self._can_call_llm():
-            self._log("ANALYZE", "Using heuristic analyzer (offline mode).")
-            return self._heuristic_analyze(code_snippet)
+    def analyze(self, code: str) -> Dict[str, List[Dict[str, Any]]]:
+        """
+        Runs heuristic analysis first.
+        AI is optional and strictly validated.
+        """
 
-        self._log("ANALYZE", "Using LLM analyzer.")
-        system_prompt = (
-            "You are BugHound, a code review assistant. "
-            "Return ONLY valid JSON. No markdown, no backticks."
-        )
-        user_prompt = (
-            "Analyze this Python code for potential issues. "
-            "Return a JSON array of issue objects with keys: type, severity, msg.\n\n"
-            f"CODE:\n{code_snippet}"
-        )
+        heuristic_issues = self.heuristic_analyzer.analyze(code)
+        self.trace.append("[ANALYZE][HEURISTIC] Issues detected")
 
-        # UPDATED: Added exception handling for API errors/rate limits
-        try:
-            raw = self.client.complete(system_prompt=system_prompt, user_prompt=user_prompt)
-        except Exception as e:
-            self._log("ANALYZE", f"API Error: {str(e)}. Falling back to heuristics.")
-            return self._heuristic_analyze(code_snippet)
+        ai_issues: List[Dict[str, Any]] = []
 
-        issues = self._parse_json_array_of_issues(raw)
+        if self.mode == "gemini":
+            self.trace.append("[ANALYZE][AI] Attempting AI analysis")
 
-        if issues is None:
-            self._log("ANALYZE", "LLM output was not parseable JSON. Falling back to heuristics.")
-            return self._heuristic_analyze(code_snippet)
+            try:
+                candidate = self.ai_analyzer.analyze(code)
 
-        return issues
+                # WK09 Part 3 – Even stricter AI rejection
+                if (
+                    not isinstance(candidate, list)
+                    or not candidate
+                    or abs(len(candidate) - len(heuristic_issues)) > 2
+                ):
+                    raise ValueError("AI output confidence too low")
 
-    def propose_fix(self, code_snippet: str, issues: List[Dict[str, str]]) -> str:
-        if not issues:
-            self._log("ACT", "No issues, returning original code unchanged.")
-            return code_snippet
+                ai_issues = candidate
+                self.ai_used = True
+                self.trace.append("[ANALYZE][AI][ACCEPTED] Output validated")
 
-        if not self._can_call_llm():
-            self._log("ACT", "Using heuristic fixer (offline mode).")
-            return self._heuristic_fix(code_snippet, issues)
+            except Exception as e:
+                self.trace.append(
+                    f"[ANALYZE][AI][REJECTED] {str(e)}"
+                )
 
-        self._log("ACT", "Using LLM fixer.")
-        system_prompt = (
-            "You are BugHound, a careful refactoring assistant. "
-            "Return ONLY the full rewritten Python code. No markdown, no backticks."
-        )
-        user_prompt = (
-            "Rewrite the code to address the issues listed. "
-            "Preserve behavior when possible. Keep changes minimal.\n\n"
-            f"ISSUES (JSON):\n{json.dumps(issues)}\n\n"
-            f"CODE:\n{code_snippet}"
-        )
+        # WK09 Part 3 – Default to safer result
+        final_issues = ai_issues if ai_issues else heuristic_issues
 
-        # UPDATED: Added exception handling for API errors/rate limits
-        try:
-            raw = self.client.complete(system_prompt=system_prompt, user_prompt=user_prompt)
-        except Exception as e:
-            self._log("ACT", f"API Error: {str(e)}. Falling back to heuristic fixer.")
-            return self._heuristic_fix(code_snippet, issues)
+        return {
+            "heuristic": heuristic_issues,
+            "ai": ai_issues,
+            "final": final_issues,
+        }
 
-        cleaned = self._strip_code_fences(raw).strip()
+    def propose_fix(self, code: str, issues: List[Dict[str, Any]]) -> str:
+        self.trace.append("[FIX][HEURISTIC] Applying conservative fixer")
+        return self.heuristic_fixer.fix(code, issues)
+    
 
-        if not cleaned:
-            self._log("ACT", "LLM returned empty output. Falling back to heuristic fixer.")
-            return self._heuristic_fix(code_snippet, issues)
-
-        return cleaned
-
-    # ----------------------------
-    # Heuristic analyzer/fixer
-    # ----------------------------
-    def _heuristic_analyze(self, code: str) -> List[Dict[str, str]]:
-        issues: List[Dict[str, str]] = []
-
-        if "print(" in code:
-            issues.append(
-                {
-                    "type": "Code Quality",
-                    "severity": "Low",
-                    "msg": "Found print statements. Consider using logging for non-toy code.",
-                }
-            )
-
-        if re.search(r"\bexcept\s*:\s*(\n|#|$)", code):
-            issues.append(
-                {
-                    "type": "Reliability",
-                    "severity": "High",
-                    "msg": "Found a bare `except:`. Catch a specific exception or use `except Exception as e:`.",
-                }
-            )
-
-        if "TODO" in code:
-            issues.append(
-                {
-                    "type": "Maintainability",
-                    "severity": "Medium",
-                    "msg": "Found TODO comments. Unfinished logic can hide bugs or missing cases.",
-                }
-            )
-
-        return issues
-
-    def _heuristic_fix(self, code: str, issues: List[Dict[str, str]]) -> str:
-        fixed = code
-
-        if any(i.get("type") == "Reliability" for i in issues):
-            fixed = re.sub(r"\bexcept\s*:\s*", "except Exception as e:\n        # [BugHound] log or handle the error\n        ", fixed)
-
-        if any(i.get("type") == "Code Quality" for i in issues):
-            if "import logging" not in fixed:
-                fixed = "import logging\n\n" + fixed
-            fixed = fixed.replace("print(", "logging.info(")
-
-        return fixed
-
-    # ----------------------------
-    # Parsing + utilities
-    # ----------------------------
-    def _parse_json_array_of_issues(self, text: str) -> Optional[List[Dict[str, str]]]:
-        text = text.strip()
-        parsed = self._try_json_loads(text)
-        if isinstance(parsed, list):
-            return self._normalize_issues(parsed)
-
-        array_str = self._extract_first_json_array(text)
-        if array_str:
-            parsed2 = self._try_json_loads(array_str)
-            if isinstance(parsed2, list):
-                return self._normalize_issues(parsed2)
-
-        return None
-
-    def _normalize_issues(self, arr: List[Any]) -> List[Dict[str, str]]:
-        issues: List[Dict[str, str]] = []
-        for item in arr:
-            if not isinstance(item, dict):
-                continue
-            issues.append(
-                {
-                    "type": str(item.get("type", "Issue")),
-                    "severity": str(item.get("severity", "Unknown")),
-                    "msg": str(item.get("msg", "")).strip(),
-                }
-            )
-        return issues
-
-    def _try_json_loads(self, s: str) -> Any:
-        try:
-            return json.loads(s)
-        except Exception:
-            return None
-
-    def _extract_first_json_array(self, s: str) -> Optional[str]:
-        start = s.find("[")
-        if start == -1:
-            return None
-        depth = 0
-        for i in range(start, len(s)):
-            if s[i] == "[":
-                depth += 1
-            elif s[i] == "]":
-                depth -= 1
-                if depth == 0:
-                    return s[start : i + 1]
-        return None
-
-    def _strip_code_fences(self, text: str) -> str:
-        text = text.strip()
-        match = re.search(r"```(?:python)?\s*(.*?)\s*```", text, flags=re.DOTALL | re.IGNORECASE)
-        if match:
-            return match.group(1)
-        return text
-
-    def _can_call_llm(self) -> bool:
-        return self.client is not None and hasattr(self.client, "complete")
-
-    def _log(self, step: str, message: str) -> None:
-        self.logs.append({"step": step, "message": message})
+    

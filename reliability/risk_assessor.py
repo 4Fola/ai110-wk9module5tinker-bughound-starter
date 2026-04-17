@@ -26,6 +26,28 @@ def assess_risk(
             "reasons": ["No fix was produced."],
             "should_autofix": False,
         }
+    
+    
+# Existing rules remain unchanged
+    if original_code != proposed_code:
+        risk_score += 1
+        reasons.append("Code changes detected")
+
+    # WK09 Part 3 – Human-in-the-loop bias
+    if ai_used:
+        risk_score += 1
+        reasons.append("AI-assisted change requires caution")
+
+
+    should_autofix = risk_score < 2
+
+    return RiskReport(
+        risk_score=risk_score,
+        reasons=reasons,
+        should_autofix=should_autofix
+    )
+
+
 
     original_lines = original_code.strip().splitlines()
     fixed_lines = fixed_code.strip().splitlines()
