@@ -16,50 +16,29 @@ class MockClient:
         return "# MockClient: no rewrite available in offline mode.\n"
 
 
+
 class GeminiClient:
     """
-    Minimal Gemini API wrapper with added error resilience.
-
-    Requirements:
-    - google-generativeai installed
-    - GEMINI_API_KEY set in environment (or loaded via python-dotenv)
+    Thin wrapper around the Gemini API.
+    Used only when Gemini mode is enabled.
     """
 
-    def __init__(self, model_name: str = "gemini-2.5-flash", temperature: float = 0.2):
-        api_key = os.getenv("GEMINI_API_KEY", "").strip()
+    def __init__(self, model_name="gemini-2.5-flash", temperature=0.2):
+        api_key = os.getenv("GEMINI_API_KEY")
         if not api_key:
-            raise RuntimeError(
-                "Missing GEMINI_API_KEY. Create a .env file and set GEMINI_API_KEY=..."
-            )
-
-        # Import here so heuristic mode doesn't require the dependency at import time.
-        import google.generativeai as genai
+            raise ValueError("GEMINI_API_KEY is not set")
 
         genai.configure(api_key=api_key)
+
         self.model = genai.GenerativeModel(model_name)
-        self.temperature = float(temperature)
+        self.temperature = temperature
 
-    def complete(self, system_prompt: str, user_prompt: str) -> str:
-        """
-        Sends a single request to Gemini.
+    def generate(self, prompt: str) -> str:
+        response = self.model.generate_content(
+            prompt,
+            generation_config={
+                "temperature": self.temperature
+            }
+        )
+        return response.text
 
-        UPDATED: Added try/except to handle rate limits and API errors gracefully.
-        If an error occurs, it returns an empty string, triggering the agent's 
-        heuristic fallback logic.
-        """
-        try:
-            response = self.model.generate_content(
-                [
-                    {"role": "system", "parts": [system_prompt]},
-                    {"role": "user", "parts": [user_prompt]},
-                ],
-                generation_config={"temperature": self.temperature},
-            )
-
-            # Defensive: response.text can be None or raise an error if blocked by filters.
-            return response.text or ""
-            
-        except Exception as e:
-            # Returning empty string allows the agent to detect the failure 
-            # and switch to offline rules.
-            return ""
