@@ -18,6 +18,9 @@ cp .env.example .env
 # IV. Run app
 streamlit run bughound_app.py
 
+# IVa. Run locally 
+streamlit run bughound_app.py
+
 # V. How To Run Tests
 pytest tests/
 

@@ -1,7 +1,7 @@
 import json
 import re
 from typing import Any, Dict, List, Optional, Tuple
-from analyzers.heuristic_analyzer import HeuristicAnalyzer
+# from analyzers.heuristic_analyzer import HeuristicAnalyzer
 from analyzers.ai_analyzer import AIAnalyzer
 from fixers.heuristic_fixer import HeuristicFixer
 from reliability.risk_assessor import assess_risk

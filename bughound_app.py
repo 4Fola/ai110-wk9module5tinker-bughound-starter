@@ -2,7 +2,7 @@ import os
 import difflib
 import streamlit as st
 from dotenv import load_dotenv
-from bughound_agent import BugHoundAgent
+# from bughound_agent import BugHoundAgent
 from llm_client import GeminiClient, MockClient
 
 # ----------------------------
