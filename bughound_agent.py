@@ -11,97 +11,129 @@ class BugHoundAgent:
     """
     BugHound Agent
 
-    Cautious debugging assistant with human-in-the-loop bias.
+    Reliability-first, human-in-the-loop by design.
     """
 
     def __init__(self, mode: str = "heuristic"):
         self.mode = mode
-        self.trace: List[str] = []
+
+        # WK09 Part 4 – Structured trace for UI and tests
+        self.trace: List[Dict[str, str]] = []
 
         self.heuristic_analyzer = HeuristicAnalyzer()
         self.ai_analyzer = AIAnalyzer()
         self.heuristic_fixer = HeuristicFixer()
 
-        # WK09 Part 3 – Track AI usage for risk decisions
         self.ai_used = False
+        self.ai_disagreed = False
+
+    def _log(self, stage, source, status, message):
+        """WK09 Part 4 – Centralized trace logging"""
+        self.trace.append({
+            "stage": stage,
+            "source": source,
+            "status": status,
+            "message": message
+        })
 
     def run(self, code: str) -> Dict[str, Any]:
         self.trace.clear()
         self.ai_used = False
+        self.ai_disagreed = False
 
-        self.trace.append("[ANALYZE] Starting issue detection")
-        analysis_result = self.analyze(code)
+        self._log("ANALYZE", "SYSTEM", "INFO", "Starting analysis stage")
+        analysis = self.analyze(code)
 
-        self.trace.append("[FIX] Proposing candidate fix")
-        proposed_fix = self.propose_fix(code, analysis_result["final"])
+        self._log("FIX", "SYSTEM", "INFO", "Proposing fix")
+        proposed_fix = self.propose_fix(code, analysis["final"])
 
-        self.trace.append("[RISK] Assessing change safety")
+        self._log("RISK", "SYSTEM", "INFO", "Assessing risk")
         risk_report = assess_risk(
             code,
             proposed_fix,
-            ai_used=self.ai_used  # WK09 Part 3 – bias toward caution
+            ai_used=self.ai_used,
+            ai_disagreed=self.ai_disagreed
         )
 
-        self.trace.append(
-            f"[DECIDE] auto_fix_allowed={risk_report.should_autofix}"
-        )
+        # WK09 Part 4 – Hard autonomy lockout
+        if self.ai_used and self.ai_disagreed:
+            risk_report.should_autofix = False
+            self._log(
+                "DECIDE",
+                "SYSTEM",
+                "LOCKED",
+                "AI disagreement forces human review"
+            )
+        else:
+            self._log(
+                "DECIDE",
+                "SYSTEM",
+                "INFO",
+                f"auto_fix_allowed={risk_report.should_autofix}"
+            )
 
         return {
-            # WK09 Part 3 – Side-by-side comparison for UI
-            "issues_heuristic": analysis_result["heuristic"],
-            "issues_ai": analysis_result["ai"],
-            "issues_final": analysis_result["final"],
+            "issues_heuristic": analysis["heuristic"],
+            "issues_ai": analysis["ai"],
+            "issues_final": analysis["final"],
             "proposed_fix": proposed_fix,
             "risk_report": risk_report,
             "trace": self.trace,
         }
 
     def analyze(self, code: str) -> Dict[str, List[Dict[str, Any]]]:
-        """
-        Runs heuristic analysis first.
-        AI is optional and strictly validated.
-        """
+        heuristic = self.heuristic_analyzer.analyze(code)
+        self._log("ANALYZE", "HEURISTIC", "INFO", "Heuristic analysis complete")
 
-        heuristic_issues = self.heuristic_analyzer.analyze(code)
-        self.trace.append("[ANALYZE][HEURISTIC] Issues detected")
-
-        ai_issues: List[Dict[str, Any]] = []
-
+        ai = []
         if self.mode == "gemini":
-            self.trace.append("[ANALYZE][AI] Attempting AI analysis")
-
+            self._log("ANALYZE", "AI", "INFO", "Attempting AI analysis")
             try:
                 candidate = self.ai_analyzer.analyze(code)
 
-                # WK09 Part 3 – Even stricter AI rejection
-                if (
-                    not isinstance(candidate, list)
-                    or not candidate
-                    or abs(len(candidate) - len(heuristic_issues)) > 2
-                ):
-                    raise ValueError("AI output confidence too low")
+                if not isinstance(candidate, list) or not candidate:
+                    raise ValueError("Invalid AI output")
 
-                ai_issues = candidate
+                if len(candidate) != len(heuristic):
+                    self.ai_disagreed = True
+
+                ai = candidate
                 self.ai_used = True
-                self.trace.append("[ANALYZE][AI][ACCEPTED] Output validated")
+                self._log("ANALYZE", "AI", "ACCEPTED", "AI output accepted")
 
             except Exception as e:
-                self.trace.append(
-                    f"[ANALYZE][AI][REJECTED] {str(e)}"
+                self._log(
+                    "ANALYZE",
+                    "AI",
+                    "REJECTED",
+                    f"AI rejected: {str(e)}"
                 )
 
-        # WK09 Part 3 – Default to safer result
-        final_issues = ai_issues if ai_issues else heuristic_issues
+        final = ai if ai and not self.ai_disagreed else heuristic
+
+        if self.ai_disagreed:
+            self._log(
+                "ANALYZE",
+                "SYSTEM",
+                "INFO",
+                "AI disagreement detected; heuristic preferred"
+            )
 
         return {
-            "heuristic": heuristic_issues,
-            "ai": ai_issues,
-            "final": final_issues,
+            "heuristic": heuristic,
+            "ai": ai,
+            "final": final,
         }
 
     def propose_fix(self, code: str, issues: List[Dict[str, Any]]) -> str:
-        self.trace.append("[FIX][HEURISTIC] Applying conservative fixer")
+        self._log("FIX", "HEURISTIC", "INFO", "Applying conservative fix")
         return self.heuristic_fixer.fix(code, issues)
-    
 
-    
+
+
+
+
+
+
+
+
