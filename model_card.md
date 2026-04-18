@@ -4,89 +4,115 @@ Fill this out after you run BugHound in **both** modes (Heuristic and Gemini).
 
 ---
 
-## 1) What is this system?
+# BugHound – Model Card
+
+## System Overview
 
 **Name:** BugHound  
-**Purpose:** Analyze a Python snippet, propose a fix, and run reliability checks before suggesting whether the fix should be auto-applied.
+**Purpose:**  
+BugHound analyzes short Python code snippets, proposes conservative fixes, and
+evaluates the risk of those changes before deciding whether to auto‑apply them
+or defer to human review.
 
-**Intended users:** Students learning agentic workflows and AI reliability concepts.
-
----
-
-## 2) How does it work?
-
-Describe the workflow in your own words (plan → analyze → act → test → reflect).  
-Include what is done by heuristics vs what is done by Gemini (if enabled).
+**Intended Users:**  
+Students and developers learning about agentic workflows, AI reliability,
+and human‑in‑the‑loop system design.
 
 ---
 
-## 3) Inputs and outputs
+## Agentic Workflow
+
+BugHound follows a structured agent loop:
+
+1. **Analyze**
+   - Heuristic analysis runs first
+   - Optional Gemini analysis is attempted if enabled
+
+2. **Propose Fix**
+   - Uses conservative heuristic fixes
+   - Preserves original behavior when possible
+
+3. **Assess Risk**
+   - Evaluates safety signals such as:
+     - Code modification
+     - AI involvement
+     - Disagreement between AI and heuristics
+
+4. **Decide or Defer**
+   - Auto‑fix only when risk is low
+   - Lock autonomy when confidence is reduced
+
+Heuristics are always available as a fallback and are preferred when uncertainty
+is detected.
+
+---
+
+## Inputs and Outputs
 
 **Inputs:**
-
-- What kind of code snippets did you try?
-- What was the “shape” of the input (short scripts, functions, try/except blocks, etc.)?
+- Short Python scripts or functions
+- Common patterns such as conditionals, loops, and try/except blocks
 
 **Outputs:**
-
-- What types of issues were detected?
-- What kinds of fixes were proposed?
-- What did the risk report show?
-
----
-
-## 4) Reliability and safety rules
-
-List at least **two** reliability rules currently used in `assess_risk`. For each:
-
-- What does the rule check?
-- Why might that check matter for safety or correctness?
-- What is a false positive this rule could cause?
-- What is a false negative this rule could miss?
+- Detected issues (heuristic and AI, shown side‑by‑side)
+- A proposed fixed version of the code
+- A structured risk report
+- A step‑by‑step agent trace
 
 ---
 
-## 5) Observed failure modes
+## Reliability and Safety Rules
 
-Provide at least **two** examples:
+1. **AI Involvement Increases Risk**
+   - Any AI‑assisted change raises the risk score
+   - Prevents silent over‑trust in model output
 
-1. A time BugHound missed an issue it should have caught  
-2. A time BugHound suggested a fix that felt risky, wrong, or unnecessary  
+2. **AI–Heuristic Disagreement Locks Autonomy**
+   - If AI findings differ from heuristics, auto‑fix is disabled
+   - Forces human review when signals conflict
 
-For each, include the snippet (or describe it) and what went wrong.
+**Potential False Positives:**
+- Benign AI suggestions triggering manual review
 
----
-
-## 6) Heuristic vs Gemini comparison
-
-Compare behavior across the two modes:
-
-- What did Gemini detect that heuristics did not?
-- What did heuristics catch consistently?
-- How did the proposed fixes differ?
-- Did the risk scorer agree with your intuition?
+**Potential False Negatives:**
+- Heuristic rules missing context‑specific issues
 
 ---
 
-## 7) Human-in-the-loop decision
+## Observed Failure Modes
 
-Describe one scenario where BugHound should **refuse** to auto-fix and require human review.
+1. **AI Over‑Interpretation**
+   - AI may suggest unnecessary changes to valid code
+   - Mitigated by disagreement detection and fallback
 
-- What trigger would you add?
-- Where would you implement it (risk_assessor vs agent workflow vs UI)?
-- What message should the tool show the user?
+2. **Heuristic Blind Spots**
+   - Simple rules may miss subtle logic errors
+   - AI helps surface these but does not override safety checks
 
 ---
 
-## 8) Improvement idea
+## Heuristic vs Gemini Comparison
 
-Propose one improvement that would make BugHound more reliable *without* making it dramatically more complex.
+- Gemini detects higher‑level issues heuristics may miss
+- Heuristics provide consistency and predictability
+- Gemini output is treated as advisory, not authoritative
+- Risk scoring favors caution when AI is involved
 
-Examples:
+---
 
-- A better output format and parsing strategy
-- A new guardrail rule + test
-- A more careful “minimal diff” policy
-- Better detection of changes that alter behavior
+## Human‑in‑the‑Loop Triggers
 
-Write your idea clearly and briefly.
+BugHound requires human review when:
+- AI and heuristic analyses disagree
+- The risk score exceeds the safe threshold
+- The agent’s confidence is reduced
+
+Clear trace messages explain why autonomy was locked.
+
+---
+
+## Proposed Improvement
+
+Add structural diff analysis to detect control‑flow changes
+(e.g., return paths or exception handling) and increase risk
+when behavior changes are likely.
