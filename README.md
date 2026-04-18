@@ -8,6 +8,8 @@ a fix should be auto‑applied or deferred to human review.
 The system is intentionally cautious and designed to demonstrate how
 agentic workflows, guardrails, and human‑in‑the‑loop decisions work in practice.
 
+NB: BugHound follows an agentic loop where it analyzes code, proposes a minimal fix, evaluates the risk of that change, and then decides whether to act or defer to a human, with explicit guardrails that limit AI autonomy when confidence is low.
+
 ---
 
 <img src="assets/BugHound-Demo.gif" alt="BugHound-Demo">
