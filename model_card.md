@@ -2,8 +2,6 @@
 
 # 👉 [Model Card](model_card.md) | [ReadMe](README.md) | 
 
-# BugHound – Model Card
-
 ## 🐶 BugHound Agent Loop
 <img src="assets/BugHound_Agent_Workflow.jpg" alt="BugHound_Agent_Workflow">
 
