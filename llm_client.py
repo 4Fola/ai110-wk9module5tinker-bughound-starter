@@ -1,5 +1,6 @@
 import os
 from typing import Optional
+import google.generativeai as genai
 
 
 class MockClient:
@@ -14,6 +15,10 @@ class MockClient:
             # Purposely not JSON to force fallback unless students change behavior.
             return "I found some issues, but I'm not returning JSON right now."
         return "# MockClient: no rewrite available in offline mode.\n"
+
+    def generate(self, prompt: str) -> str:
+        # Simple fallback for analyze calls
+        return "[]"
 
 
 

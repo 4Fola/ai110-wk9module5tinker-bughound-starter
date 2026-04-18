@@ -3,7 +3,7 @@ import re
 from typing import Any, Dict, List, Optional, Tuple
 # from analyzers.heuristic_analyzer import HeuristicAnalyzer
 from analyzers.ai_analyzer import AIAnalyzer
-from fixers.heuristic_fixer import HeuristicFixer
+# from fixers.heuristic_fixer import HeuristicFixer
 from reliability.risk_assessor import assess_risk
 
 
@@ -18,9 +18,9 @@ class BugHoundAgent:
         self.mode = mode
         self.trace: List[Dict[str, str]] = []
 
-        self.heuristic_analyzer = HeuristicAnalyzer()
+        # self.heuristic_analyzer = HeuristicAnalyzer()
         self.ai_analyzer = AIAnalyzer()
-        self.heuristic_fixer = HeuristicFixer()
+        # self.heuristic_fixer = HeuristicFixer()
 
         self.ai_used = False
         self.ai_disagreed = False
@@ -76,7 +76,8 @@ class BugHoundAgent:
         }
 
     def analyze(self, code: str):
-        heuristic = self.heuristic_analyzer.analyze(code)
+        # heuristic = self.heuristic_analyzer.analyze(code)
+        heuristic = []
         self._log("ANALYZE", "HEURISTIC", "INFO", "Heuristic analysis complete")
 
         ai = []
@@ -101,7 +102,8 @@ class BugHoundAgent:
 
     def propose_fix(self, code, issues):
         self._log("FIX", "HEURISTIC", "INFO", "Applying conservative fix")
-        return self.heuristic_fixer.fix(code, issues)
+        # return self.heuristic_fixer.fix(code, issues)
+        return code
 
     # WK09 Part 5 – Exportable trace
     def export_trace_json(self):

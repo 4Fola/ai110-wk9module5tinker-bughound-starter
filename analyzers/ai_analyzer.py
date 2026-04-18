@@ -1,11 +1,15 @@
 # WK09 Part 2–5: AI-assisted analysis with strict validation
 
-from llm_client import GeminiClient
+from llm_client import GeminiClient, MockClient
 
 
 class AIAnalyzer:
     def __init__(self):
-        self.client = GeminiClient()
+        try:
+            self.client = GeminiClient()
+        except ValueError:
+            # API key not set, use mock client
+            self.client = MockClient()
 
     def analyze(self, code: str):
         prompt = (
