@@ -48,7 +48,7 @@ if run and code.strip():
 
     # Risk
     st.subheader("Risk Report")
-    st.json(result["risk_report"].__dict__)
+    st.json(result["risk"])
 
     # Trace (color-coded)
     st.subheader("Agent Trace")
@@ -59,7 +59,7 @@ if run and code.strip():
         "LOCKED": "orange"
     }
 
-    for t in result["trace"]:
+    for t in result["logs"]:
         st.markdown(
             f"<span style='color:{COLORS.get(t['status'], 'black')}'>"
             f"[{t['stage']}] [{t['source']}] "

@@ -68,7 +68,9 @@ class BugHoundAgent:
             )
 
         return {
-            "issues": analysis["final"],
+            "issues_heuristic": analysis["heuristic"],
+            "issues_ai": analysis["ai"],
+            "issues_final": analysis["final"],
             "fixed_code": fixed_code,
             "risk": risk,
             "logs": self.trace

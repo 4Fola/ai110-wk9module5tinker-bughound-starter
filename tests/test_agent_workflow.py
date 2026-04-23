@@ -8,12 +8,12 @@ def test_workflow_runs_in_offline_mode_and_returns_shape():
     result = agent.run(code)
 
     assert isinstance(result, dict)
-    assert "issues" in result
+    assert "issues_final" in result
     assert "fixed_code" in result
     assert "risk" in result
     assert "logs" in result
 
-    assert isinstance(result["issues"], list)
+    assert isinstance(result["issues_final"], list)
     assert isinstance(result["fixed_code"], str)
     assert isinstance(result["risk"], dict)
     assert isinstance(result["logs"], list)
@@ -25,7 +25,7 @@ def test_offline_mode_detects_print_issue():
     code = "def f():\n    print('hi')\n    return True\n"
     result = agent.run(code)
 
-    assert any(issue.get("type") == "Code Quality" for issue in result["issues"])
+    assert any(issue.get("type") == "Code Quality" for issue in result["issues_final"])
 
 
 def test_offline_mode_proposes_logging_fix_for_print():
@@ -44,6 +44,6 @@ def test_mock_client_forces_llm_fallback_to_heuristics_for_analysis():
     code = "def f():\n    print('hi')\n    return True\n"
     result = agent.run(code)
 
-    assert any(issue.get("type") == "Code Quality" for issue in result["issues"])
+    assert any(issue.get("type") == "Code Quality" for issue in result["issues_final"])
     # Ensure we logged the fallback path
     assert any("Falling back to heuristics" in entry.get("message", "") for entry in result["logs"])
