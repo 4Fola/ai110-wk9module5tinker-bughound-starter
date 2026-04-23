@@ -7,25 +7,22 @@ class RiskReport:
         self.should_autofix = should_autofix
 
 
-def assess_risk(original_code, proposed_code, ai_used=False, ai_disagreed=False):
-    risk_score = 0
+def assess_risk(original_code, fixed_code, issues, ai_used=False, ai_disagreed=False):
     reasons = []
-
-    if original_code != proposed_code:
-        risk_score += 1
+    if fixed_code == "":
+        reasons.append("No fix provided")
+        return {"level": "high", "should_autofix": False, "score": 0, "reasons": reasons}
+    
+    has_high_severity = any(issue.get("severity") == "High" for issue in issues)
+    if has_high_severity:
+        reasons.append("High severity issues detected")
+        return {"level": "high", "should_autofix": False, "score": 0, "reasons": reasons}
+    
+    if "return" in original_code and "return" not in fixed_code:
+        reasons.append("Return statement removed")
+    
+    if original_code != fixed_code:
         reasons.append("Code was modified")
-
-    # WK09 Part 4 – AI involvement increases caution
-    if ai_used:
-        risk_score += 1
-        reasons.append("AI-assisted change")
-
-    # WK09 Part 4 – Disagreement forces review
-    if ai_disagreed:
-        risk_score += 1
-        reasons.append("AI and heuristic disagreement")
-
-    should_autofix = risk_score < 2
-
-    return RiskReport(risk_score, reasons, should_autofix)
+    
+    return {"level": "low", "should_autofix": True, "score": 1, "reasons": reasons}
 

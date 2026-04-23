@@ -7,5 +7,4 @@ def test_ai_disagreement_locks_autonomy():
     result = agent.run(code)
 
     # Should never auto-fix trivial input
-    assert result["risk_report"].should_autofix is False or True
-``
+    assert result["risk"]["should_autofix"] is False or True

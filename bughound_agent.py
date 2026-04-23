@@ -1,9 +1,9 @@
 import json
 import re
 from typing import Any, Dict, List, Optional, Tuple
-# from analyzers.heuristic_analyzer import HeuristicAnalyzer
+from analyzers.heuristic_analyzer import HeuristicAnalyzer
 from analyzers.ai_analyzer import AIAnalyzer
-# from fixers.heuristic_fixer import HeuristicFixer
+from fixers.heuristic_fixer import HeuristicFixer
 from reliability.risk_assessor import assess_risk
 
 
@@ -14,13 +14,13 @@ class BugHoundAgent:
     Reliability-first, human-in-the-loop by design.
     """
 
-    def __init__(self, mode="heuristic"):
+    def __init__(self, mode="heuristic", client=None):
         self.mode = mode
         self.trace: List[Dict[str, str]] = []
 
-        # self.heuristic_analyzer = HeuristicAnalyzer()
-        self.ai_analyzer = AIAnalyzer()
-        # self.heuristic_fixer = HeuristicFixer()
+        self.heuristic_analyzer = HeuristicAnalyzer()
+        self.ai_analyzer = AIAnalyzer(client)
+        self.heuristic_fixer = HeuristicFixer()
 
         self.ai_used = False
         self.ai_disagreed = False
@@ -49,13 +49,14 @@ class BugHoundAgent:
         risk = assess_risk(
             code,
             fixed_code,
+            analysis["final"],
             ai_used=self.ai_used,
             ai_disagreed=self.ai_disagreed
         )
 
         # WK09 Part 4 – Autonomy lockout
         if self.ai_used and self.ai_disagreed:
-            risk.should_autofix = False
+            risk["should_autofix"] = False
             self._log(
                 "DECIDE", "SYSTEM", "LOCKED",
                 "AI disagreement forces human review"
@@ -63,25 +64,22 @@ class BugHoundAgent:
         else:
             self._log(
                 "DECIDE", "SYSTEM", "INFO",
-                f"auto_fix_allowed={risk.should_autofix}"
+                f"auto_fix_allowed={risk['should_autofix']}"
             )
 
         return {
-            "issues_heuristic": analysis["heuristic"],
-            "issues_ai": analysis["ai"],
-            "issues_final": analysis["final"],
+            "issues": analysis["final"],
             "fixed_code": fixed_code,
-            "risk_report": risk,
-            "trace": self.trace
+            "risk": risk,
+            "logs": self.trace
         }
 
     def analyze(self, code: str):
-        # heuristic = self.heuristic_analyzer.analyze(code)
-        heuristic = []
+        heuristic = self.heuristic_analyzer.analyze(code)
         self._log("ANALYZE", "HEURISTIC", "INFO", "Heuristic analysis complete")
 
         ai = []
-        if self.mode == "gemini":
+        if self.ai_analyzer.client is not None:
             self._log("ANALYZE", "AI", "INFO", "Attempting AI analysis")
             try:
                 candidate = self.ai_analyzer.analyze(code)
@@ -95,15 +93,14 @@ class BugHoundAgent:
                 self.ai_used = True
                 self._log("ANALYZE", "AI", "ACCEPTED", "AI output accepted")
             except Exception as e:
-                self._log("ANALYZE", "AI", "REJECTED", str(e))
+                self._log("ANALYZE", "AI", "REJECTED", "Falling back to heuristics: " + str(e))
 
         final = ai if ai and not self.ai_disagreed else heuristic
         return {"heuristic": heuristic, "ai": ai, "final": final}
 
     def propose_fix(self, code, issues):
         self._log("FIX", "HEURISTIC", "INFO", "Applying conservative fix")
-        # return self.heuristic_fixer.fix(code, issues)
-        return code
+        return self.heuristic_fixer.fix(code, issues)
 
     # WK09 Part 5 – Exportable trace
     def export_trace_json(self):

@@ -4,12 +4,11 @@ from llm_client import GeminiClient, MockClient
 
 
 class AIAnalyzer:
-    def __init__(self):
-        try:
-            self.client = GeminiClient()
-        except ValueError:
-            # API key not set, use mock client
-            self.client = MockClient()
+    def __init__(self, client=None):
+        if client is not None:
+            self.client = client
+        else:
+            self.client = None
 
     def analyze(self, code: str):
         prompt = (
